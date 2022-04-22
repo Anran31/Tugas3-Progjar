@@ -1,0 +1,349 @@
+-- Nomor 1
+create or replace function tidakAktif() 
+returns trigger 
+as $tidakAktif$
+begin
+    update member_kep
+    set mk_statusaktif = new.kep_statusaktif
+    from sk_kep
+    where member_kep.sk_id = sk_kep.sk_id
+	and sk_kep.kep_id = old.kep_id ;
+    
+    return null;
+end; $tidakAktif$ language plpgsql;
+
+create trigger tidakAktif 
+after update of kep_statusaktif on kep
+for each row 
+execute procedure tidakAktif();
+
+-- Nomor 2
+create sequence new_seq_detail_nilai_telaah 
+as integer
+increment by 1
+minvalue 16
+maxvalue 9999;
+
+create or replace function add_new_dt_id()
+returns trigger
+language plpgsql
+as 
+$$
+ begin
+  new.dt_id := nextval('new_seq_detail_nilai_telaah');
+  return new;
+ end;
+$$; 
+
+create trigger add_new_dt_id before insert on detail_nilai_telaah
+for each row
+execute procedure add_new_dt_id();
+
+create sequence new_seq_peneliti 
+as integer
+increment by 1
+minvalue 21
+maxvalue 9999;
+
+create or replace function add_new_p_id()
+returns trigger
+language plpgsql
+as 
+$$
+ begin
+  new.p_id := nextval('new_seq_peneliti');
+  return new;
+ end;
+$$; 
+
+create trigger add_new_p_id before insert on peneliti
+for each row
+execute procedure add_new_p_id();
+
+create sequence new_seq_pengusul 
+as integer
+increment by 1
+minvalue 7
+maxvalue 9999;
+
+create or replace function add_new_pu_id()
+returns trigger
+language plpgsql
+as 
+$$
+ begin
+  new.pu_id := nextval('new_seq_pengusul');
+  return new;
+ end;
+$$; 
+
+create trigger add_new_pu_id before insert on pengusul
+for each row
+execute procedure add_new_pu_id();
+
+create sequence new_seq_protokol 
+as integer
+increment by 1
+minvalue 6
+maxvalue 9999;
+
+create or replace function add_new_pr_id()
+returns trigger
+language plpgsql
+as 
+$$
+ begin
+  new.pr_id := nextval('new_seq_protokol');
+  return new;
+ end;
+$$; 
+
+create trigger add_new_pr_id before insert on protokol
+for each row
+execute procedure add_new_pr_id();
+
+create sequence new_seq_hasil_telaah 
+as integer
+increment by 1
+minvalue 4
+maxvalue 9999;
+
+create or replace function add_new_ht_id()
+returns trigger
+language plpgsql
+as 
+$$
+ begin
+  new.ht_id := nextval('new_seq_hasil_telaah');
+  return new;
+ end;
+$$; 
+
+create trigger add_new_ht_id before insert on hasil_telaah
+for each row
+execute procedure add_new_ht_id();
+
+-- Nomor 3
+alter table anggota
+add column ag_jeniskelamin varchar(2) ;
+
+create sequence new_seq_anggota_p
+as integer
+increment by 1
+minvalue 11
+maxvalue 9999 ;
+
+create sequence new_seq_anggota_l
+as integer
+increment by 1
+minvalue 24
+maxvalue 9999 ;
+
+create or replace function make_id_p(v bigint) 
+returns varchar 
+language plpgsql
+as $$
+declare
+	counter integer ;
+	ret_id varchar(5) ;
+	i integer ;
+begin
+	i := v ;
+	counter := 0 ;
+	while i != 0 loop
+		counter := counter + 1 ;
+		i := i / 10 ;
+	end loop ;
+	
+	counter := 4 - counter ;
+	ret_id := 'P' ;
+	
+	for j in 1..counter loop
+		ret_id := ret_id || '0' ;
+	end loop ;
+	
+	ret_id := ret_id || v ;
+	
+	return ret_id ;
+	
+end ; $$ ;
+
+create or replace function make_id_l(v bigint) 
+returns varchar 
+language plpgsql
+as $$
+declare
+	counter integer ;
+	ret_id varchar(5) ;
+	i integer ;
+begin
+	i := v ;
+	counter := 0 ;
+	while i != 0 loop
+		counter := counter + 1 ;
+		i := i / 10 ;
+	end loop ;
+	
+	counter := 4 - counter ;
+	ret_id := 'L' ;
+	
+	for j in 1..counter loop
+		ret_id := ret_id || '0' ;
+	end loop ;
+	
+	ret_id := ret_id || v ;
+	
+	return ret_id ;
+	
+end ; $$ ;
+
+create or replace function add_new_anggota_p_id()
+returns trigger
+language plpgsql
+as 
+$$
+ begin
+ 	if new.ag_jeniskelamin = 'P' then
+		new.ag_id := make_id_p(nextval('new_seq_anggota_p'));
+	elsif new.ag_jeniskelamin = 'L' then
+		new.ag_id := make_id_l(nextval('new_seq_anggota_l'));
+	end if ;
+  	return new;
+ end;
+$$; 
+
+create trigger add_new_anggota_p_id before insert on anggota
+for each row
+execute procedure add_new_anggota_p_id();
+
+-- Nomor 4
+create or replace procedure fix_status_aktif()
+language plpgsql
+as $$
+begin
+	update kep
+	set kep_statusaktif = false
+	where kep_id not in (
+		select kep_id from sk_kep
+		where sk_validend > now() 
+	) ;
+end ; $$ ;
+
+call fix_status_aktif() ;
+
+-- Nomor 5
+create or replace function add_new_pr_id()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.pr_id := nextval('new_seq_protokol');
+  new.pr_tglpengajuan := now() ;
+  return new;
+ end;
+$$;
+
+create or replace function add_new_ht()
+returns trigger
+language plpgsql
+as 
+$$
+ begin
+  new.ht_tglsubmitproposal := now();
+  new.ht_perbaikanke := 0 ;
+  new.ht_statusproses := 'MENUNGGU' ;
+  return new;
+ end;
+$$; 
+
+create trigger add_new_ht before insert on hasil_telaah
+for each row
+execute procedure add_new_ht();
+
+create or replace function create_ht()
+returns trigger
+language plpgsql
+as $$
+declare
+	fileproposal varchar(200) ;
+begin
+  	fileproposal := '\Upload\Proposal\' || new.pr_id || '.pdf' ;
+  	insert into hasil_telaah (pr_id, ht_fileproposal) values (new.pr_id, fileproposal) ;
+end ; $$ ;
+
+create trigger create_ht after insert on protokol
+for each row
+execute procedure create_ht();
+
+-- Nomor 6
+create or replace procedure hapus_pengusul()
+language plpgsql
+as $$
+begin
+	update peneliti
+	set pu_id = null
+	where pu_id not in (
+		select pu_id from protokol
+	) ;
+	delete from pengusul pu
+	where pu.pu_id not in (
+		select pu_id from protokol
+	) ;
+end ; $$ ;
+
+-- Nomor 7
+create or replace function get_pr_id_from_ht_id(ht int)
+returns integer
+language plpgsql
+as $$
+declare
+	id_pr integer ;
+begin
+	select pr_id
+	into id_pr
+	from hasil_telaah
+	where ht_id = ht ;
+	return id_pr;
+end ; $$ ;
+
+create or replace function telaah()
+returns trigger
+language plpgsql
+as $$
+declare
+	id_pr integer ;
+begin
+	if new.ht_id is not null then
+		id_pr := get_pr_id_from_ht_id(new.ht_id) ;
+		update protokol 
+		set pr_tglpenugasantim = now()
+		where pr_id = id_pr ;
+
+		update hasil telaah
+		set ht_statusproses = 'PROSES'
+		where pr_id = id_pr ;
+	end if ;
+end ; $$ ;
+
+create trigger telaah
+after insert on member_penelaah
+for each row
+execute procedure telaah() ;
+
+-- Nomor 8
+create or replace function up()
+returns trigger 
+as 
+$up$
+ begin
+  if new.ht_klasifikasi = 'fb' or new.ht_klasifikasi = 'e2'
+  then 
+   	new.ht_tglkeputusan = now();
+    	new.ht_keputusan = 'perbaikan';
+  end if;
+  return new;
+ end; $up$ language plpgsql;
+
+create trigger up before update on hasil_telaah
+for each row
+execute procedure up();
